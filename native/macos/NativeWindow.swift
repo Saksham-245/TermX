@@ -19,8 +19,8 @@ private var dragMonitors: [ObjectIdentifier: Any] = [:]
 @MainActor
 private func getView(_ pointer: UnsafeMutableRawPointer) -> NSView {
     return Unmanaged<NSView>
-            .fromOpaque(pointer)
-            .takeUnretainedValue()
+        .fromOpaque(pointer)
+        .takeUnretainedValue()
 }
 
 @MainActor
@@ -47,8 +47,7 @@ private func measureInset(
 
     let measuredInset = max(
         0,
-        viewBoundsInWindow.maxY -
-                window.contentLayoutRect.maxY
+        viewBoundsInWindow.maxY - window.contentLayoutRect.maxY
     ).rounded(.up)
 
     /*
@@ -62,7 +61,8 @@ private func measureInset(
     }
 
     if let cachedInset = cachedInsets[key],
-       cachedInset > 0 {
+        cachedInset > 0
+    {
         return cachedInset
     }
 
@@ -93,34 +93,53 @@ private func configureGlass(_ view: NSView) {
 }
 
 @MainActor
-private func pointIsInsideWindowButton(_ point: NSPoint,
-                                       window: NSWindow) -> Bool {
+private func pointIsInsideNativeControl(
+    _ point: NSPoint,
+    window: NSWindow
+) -> Bool {
     let buttonTypes: [NSWindow.ButtonType] = [
         .closeButton,
         .miniaturizeButton,
-        .zoomButton
+        .zoomButton,
     ]
 
     for type in buttonTypes {
         guard let button = window.standardWindowButton(type),
-              !button.isHidden else {
+            !button.isHidden, button.alphaValue > 0
+        else {
             continue
         }
 
-        let buttonFrame = button.convert(
-            button.bounds,
-            to: nil
-        )
-
         // Give the native button a slightly larger click area.
-        let hitFrame = buttonFrame.insetBy(
-            dx: -4,
-            dy: -4
+        let hitFrame = button.convert(button.bounds, to: nil).insetBy(
+            dx: -5,
+            dy: -5
         )
 
         if hitFrame.contains(point) {
             return true
         }
+    }
+
+    // Protect native tab buttons and any other titlebar controls
+
+    guard let frameView = window.contentView?.superview else {
+        return false
+    }
+
+    let pointInFrame = frameView.convert(point, from: nil)
+
+    var hitView: NSView? = frameView.hitTest(pointInFrame)
+
+    while let view = hitView {
+        if view is NSControl {
+            return true
+        }
+
+        if view === frameView {
+            break
+        }
+        hitView = view.superview
     }
 
     return false
@@ -140,36 +159,29 @@ private func installNativeDragging(
         matching: .leftMouseDown
     ) { [weak window] event in
         guard
-        let window,
-        event.window === window,
-        window.isMovable,
-        !window.styleMask.contains(.fullScreen)
+            let window,
+            event.window === window,
+            window.isMovable,
+            !window.styleMask.contains(.fullScreen),
+            event.clickCount == 1,
+            !pointIsInsideNativeControl(event.locationInWindow, window: window),
+            let contentView = window.contentView
         else {
             return event
         }
 
         let point = event.locationInWindow
-        let windowTop = window.contentView?.bounds.maxY
-                ?? window.frame.height
 
-        /*
-         Keep dragging inside the empty strip above the native tabs.
-         Do not include the tab capsules themselves.
-        */
+        let contentFrameInWindow = contentView.convert(contentView.bounds, to: nil)
+
         let dragStripHeight: CGFloat = 18
-        let dragStripBottom = windowTop - dragStripHeight
 
-        guard point.y >= dragStripBottom,
-              point.y <= windowTop else {
-            // AppKit receives tab, traffic-light and terminal clicks.
-            return event
-        }
+        let dragStrip = NSRect(
+            x: contentFrameInWindow.minX, y: contentFrameInWindow.maxY - dragStripHeight,
+            width: contentFrameInWindow.width, height: dragStripHeight
+        )
 
-        /*
-         Preserve double-clicking the title bar. AppKit handles the
-         user's configured "double-click title bar" preference.
-        */
-        if event.clickCount > 1 {
+        guard dragStrip.contains(point) else {
             return event
         }
 
@@ -194,7 +206,7 @@ private func installNativeDragging(
             ) {
                 NSEvent.removeMonitor(monitor)
             }
-            
+
             cachedInsets.removeValue(forKey: key)
         }
     }
@@ -218,7 +230,7 @@ private func configureWindow(_ view: NSView) -> Double {
     window.hasShadow = true
 
     window.isMovable = true
-    window.isMovableByWindowBackground = true
+    window.isMovableByWindowBackground = false
 
     window.standardWindowButton(
         .closeButton
@@ -270,20 +282,22 @@ public func termxTopInset(_ pointer: UnsafeMutableRawPointer?) -> Double {
 }
 
 @_cdecl("termx_add_tab")
-public func termxAddTab(_ parentPointer: UnsafeMutableRawPointer?,
-                        _ childPointer: UnsafeMutableRawPointer?
+public func termxAddTab(
+    _ parentPointer: UnsafeMutableRawPointer?,
+    _ childPointer: UnsafeMutableRawPointer?
 ) -> Double {
     guard Thread.isMainThread,
-          let parentPointer,
-          let childPointer
+        let parentPointer,
+        let childPointer
     else {
         return -1
     }
 
     return MainActor.assumeIsolated {
         guard let parentWindow = getWindow(parentPointer),
-              let childWindow = getWindow(childPointer),
-              parentWindow !== childWindow else {
+            let childWindow = getWindow(childPointer),
+            parentWindow !== childWindow
+        else {
             return -1
         }
         parentWindow.addTabbedWindow(childWindow, ordered: .above)
