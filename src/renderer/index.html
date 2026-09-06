@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+
+    <meta
+            http-equiv="Content-Security-Policy"
+            content="
+        default-src 'self';
+        script-src 'self';
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data:;
+        connect-src 'none';
+        object-src 'none';
+        base-uri 'none';
+      "
+    />
+
+    <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1"
+    />
+
+    <title>TermX</title>
+
+    <link rel="stylesheet" href="../../dist/renderer.css"/>
+    <script defer src="../../dist/renderer.js"></script>
+</head>
+
+<body>
+<main class="window">
+    <section class="terminal-panel">
+        <div id="terminal" aria-label="Terminal"></div>
+    </section>
+</main>
+</body>
+</html>
