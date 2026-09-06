@@ -167,7 +167,7 @@ function installApplicationMenu() {
     Menu.setApplicationMenu(menu)
 }
 
-function createWindow(tabParent =  null) {
+function createWindow(tabParent = null) {
     const sessionNumber = nextSessionNumber++
     const sessionTitle = `Terminal ${sessionNumber}`
     const win = new BrowserWindow({
