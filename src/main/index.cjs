@@ -1,5 +1,5 @@
 const path = require("node:path");
-const {BrowserWindow, app, ipcMain} = require('electron')
+const {BrowserWindow, app, ipcMain, dialog, Menu} = require('electron')
 const {validSender, validSize, sendToRenderer, stopSession, rendererPath} = require("./utils");
 const pty = require('node-pty')
 const os = require("node:os");
@@ -14,6 +14,8 @@ app.setAboutPanelOptions({
 const sessions = new Map();
 
 let nativeWindow;
+
+let nextSessionNumber = 1;
 
 ipcMain.handle("terminal:start", (event, size) => {
     if (!validSender(event) || !validSize(size)) {
@@ -94,10 +96,82 @@ ipcMain.handle("window:top-inset", (event) => {
     )
 })
 
+function getFocusedWindow() {
+    const win = BrowserWindow.getFocusedWindow();
 
-function createWindow() {
+    if (!win || win.isDestroyed()) {
+        return null
+    }
+
+    return win
+}
+
+function runNativeWindowAction(action) {
+    const win = getFocusedWindow();
+
+    if (!win) return;
+
+    try {
+        nativeWindow[action](
+            win.getNativeWindowHandle()
+        );
+    } catch (error) {
+        console.error(`Native window action "${action}" failed`, error);
+    }
+}
+
+function createNewTerminalTab() {
+    const parentWindow = getFocusedWindow();
+
+    createWindow(parentWindow)
+}
+
+function installApplicationMenu() {
+    const menu = Menu.buildFromTemplate([
+        {
+            label: app.name,
+            submenu: [
+                {role: 'about'},
+                {type: 'separator'},
+                {role: 'services'},
+                {type: 'separator'},
+                {role: 'hide'},
+                {role: 'hideOthers'},
+                {role: "unhide"},
+                {type: 'separator'},
+                {role: "quit"}
+            ]
+        },
+        {
+            label: "Shell",
+            submenu: [
+                {
+                    label: "New Tab",
+                    accelerator: "CommandOrControl+T",
+                    click: createNewTerminalTab
+                },
+                {
+                    label: "New Window",
+                    accelerator: "CommandOrControl+N",
+                    click: () => createWindow()
+                },
+                {type: 'separator'},
+                {
+                    label: "Close Tab",
+                    accelerator: "CommandOrControl+W",
+                    role: "close"
+                }
+            ]
+        }
+    ]);
+    Menu.setApplicationMenu(menu)
+}
+
+function createWindow(tabParent =  null) {
+    const sessionNumber = nextSessionNumber++
+    const sessionTitle = `Terminal ${sessionNumber}`
     const win = new BrowserWindow({
-        title: "TermX",
+        title: sessionTitle,
         width: 1100,
         height: 720,
         minWidth: 500,
@@ -120,14 +194,29 @@ function createWindow() {
 
     const id = win.webContents.id;
 
+    win.webContents.on("page-title-updated", (event) => {
+        event.preventDefault()
+
+        if (!win.isDestroyed()) {
+            win.setTitle(sessionTitle);
+        }
+    })
+
     function notifyWindowLayout() {
-        if (win.isDestroyed()) return;
+        if (win.isDestroyed() || win.webContents.isDestroyed()) return;
 
         sendToRenderer(
             win.webContents,
             "window:layout",
             null
         );
+    }
+
+    function notifySettledWindowLayout() {
+        notifyWindowLayout()
+
+        setTimeout(notifyWindowLayout, 50);
+        setTimeout(notifyWindowLayout, 150)
     }
 
     win.webContents.setWindowOpenHandler(() => ({
@@ -149,14 +238,34 @@ function createWindow() {
         stopSession(id, sessions)
     })
 
-    win.on("resize", notifyWindowLayout)
-    win.on("enter-full-screen", notifyWindowLayout);
-    win.on("leave-full-screen", notifyWindowLayout)
+    win.on("resize", notifySettledWindowLayout)
+    win.on("focus", notifySettledWindowLayout)
+    win.on("show", notifySettledWindowLayout)
+    win.on("restore", notifySettledWindowLayout)
+    win.on("enter-full-screen", notifySettledWindowLayout);
+    win.on("leave-full-screen", notifySettledWindowLayout)
+    win.on("new-window-for-tab", () => {
+        createWindow(win);
+    })
 
     try {
         nativeWindow.configure(
             win.getNativeWindowHandle()
         );
+
+        if (tabParent && !tabParent.isDestroyed()) {
+            nativeWindow.addTab(
+                tabParent.getNativeWindowHandle(),
+                win.getNativeWindowHandle()
+            )
+
+            if (!tabParent.webContents.isDestroyed()) {
+                tabParent.webContents.send(
+                    "window:layout",
+                    null
+                )
+            }
+        }
 
         win.setWindowButtonVisibility(true);
         win.loadFile(rendererPath);
@@ -168,7 +277,7 @@ function createWindow() {
         );
 
         win.show()
-        notifyWindowLayout()
+        notifySettledWindowLayout()
 
     } catch (error) {
         if (!win.isDestroyed()) {
@@ -192,7 +301,7 @@ function reportStartupError(error) {
 app.whenReady().then(async () => {
     try {
         nativeWindow = require("../../native/macos/build/Release/native_window")
-
+        installApplicationMenu()
         createWindow();
 
         app.on("activate", () => {
