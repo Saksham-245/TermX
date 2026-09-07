@@ -1,0 +1,5 @@
+CompileFlags:
+  Add:
+    - "-std=c++17"
+    - "-I/Users/saksham/WebstormProjects/TermX/node_modules/node-addon-api"
+    - "-I/Users/saksham/Library/Caches/node-gyp/22.23.2/include/node"

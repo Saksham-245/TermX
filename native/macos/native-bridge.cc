@@ -1,3 +1,5 @@
+#include <cstddef>
+#include <cstdint>
 #include <napi.h>
 #include <cstring>
 
@@ -15,6 +17,13 @@ extern "C" double termx_show_tab_overview(void *view);
 extern "C" double termx_move_tab_to_new_window(void *view);
 extern "C" double termx_merge_all_windows(void *view);
 extern "C" double termx_toggle_tab_bar(void *view);
+
+extern "C" double termx_show_settings();
+extern "C" int32_t termx_get_settings(
+    char *buffer,
+    int32_t capacity
+);
+
 
 using UnarySwiftFunction = double (*)(void *);
 using BinarySwiftFunction = double (*)(void *, void *);
@@ -114,6 +123,51 @@ static Napi::Value CallBinarySwift(
     }
 
     return Napi::Number::New(env, result);
+}
+
+static Napi::Value ShowSettings(
+    const Napi::CallbackInfo &info
+) {
+    Napi::Env env = info.Env();
+
+    const double result = termx_show_settings();
+
+    if (result < 0) {
+        Napi::Error::New(
+            env,
+            "Could not show native settings"
+        ).ThrowAsJavaScriptException();
+
+        return env.Undefined();
+    }
+
+    return env.Undefined();
+}
+
+static Napi::Value GetSettings(
+    const Napi::CallbackInfo &info
+) {
+    Napi::Env env = info.Env();
+
+    constexpr int32_t capacity = 16 * 1024;
+    char buffer[capacity] = {};
+
+    const int32_t length = termx_get_settings(buffer, capacity);
+
+    if (length < 0) {
+        Napi::Error::New(
+            env,
+            "Could not read native settings"
+        ).ThrowAsJavaScriptException();
+
+        return env.Undefined();
+    }
+
+    return Napi::String::New(
+        env,
+        buffer,
+        static_cast<size_t>(length)
+    );
 }
 
 static Napi::Object Init(
@@ -235,6 +289,16 @@ static Napi::Object Init(
                 );
             }
         )
+    );
+
+    exports.Set(
+        "showSettings",
+        Napi::Function::New(env, ShowSettings)
+    );
+
+    exports.Set(
+        "getSettings",
+        Napi::Function::New(env, GetSettings)
     );
 
     return exports;

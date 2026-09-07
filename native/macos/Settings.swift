@@ -27,6 +27,13 @@ private enum SettingKey {
 }
 
 @MainActor
+private final class FlippedDocumentView: NSView {
+    override var isFlipped: Bool {
+        return true
+    }
+}
+
+@MainActor
 private final class SettingsStore {
     static let shared = SettingsStore()
 
@@ -108,11 +115,23 @@ private final class SettingsWindowController: NSObject, NSWindowDelegate, NSText
 
     private var controls: [String: NSControl] = [:]
 
+    private weak var settingsScrollView: NSScrollView?
+
     func show() {
         if let window {
             refreshControls()
-            window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+
+            DispatchQueue.main.async {
+                [weak self] in self?.scrollSettingsToTop()
+            }
+
+            if let firstField = controls[SettingKey.fontFamily] as? NSTextField {
+                window.makeFirstResponder(firstField)
+            }
+
             return
         }
 
@@ -132,11 +151,13 @@ private final class SettingsWindowController: NSObject, NSWindowDelegate, NSText
 
         let scrollView = NSScrollView()
 
+        settingsScrollView = scrollView
+
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.drawsBackground = false
 
-        let documentView = NSView()
+        let documentView = FlippedDocumentView()
         documentView.translatesAutoresizingMaskIntoConstraints = false
 
         let stack = NSStackView()
@@ -154,6 +175,8 @@ private final class SettingsWindowController: NSObject, NSWindowDelegate, NSText
             documentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
 
             stack.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -24),
+            stack.topAnchor.constraint(equalTo: documentView.topAnchor, constant: 24),
             stack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor, constant: -24),
         ])
 
@@ -168,8 +191,91 @@ private final class SettingsWindowController: NSObject, NSWindowDelegate, NSText
 
         addNumberField(
             title: "Font Size",
-            key: SettingKey.fontSize
+            key: SettingKey.fontSize,
+            to: stack
         )
+
+        addNumberField(
+            title: "Line height",
+            key: SettingKey.lineHeight,
+            to: stack
+        )
+
+        addPopup(
+            title: "Cursor style", key: SettingKey.cursorStyle,
+            choices: [
+                ("Bar", "bar"),
+                ("Block", "block"),
+                ("Underline", "underline"),
+            ], to: stack)
+
+        addCheckbox(
+            title: "Blinking Cursor", key: SettingKey.cursorBlink, to: stack
+        )
+
+        addNumberField(title: "Scrollback lines", key: SettingKey.scrollback, to: stack)
+        addHeading("Shell", to: stack)
+        addTextField(
+            title: "Shell path", key: SettingKey.shellPath, placeholder: "Use $SHELL", to: stack)
+
+        addCheckbox(title: "Start as login shell", key: SettingKey.loginShell, to: stack)
+
+        addHeading("Window", to: stack)
+
+        addNumberField(title: "Opacity (0.4-1.0)", key: SettingKey.windowOpacity, to: stack)
+
+        addHeading("Colors", to: stack)
+
+        let colors = [
+            ("Foreground", SettingKey.foreground),
+            ("Background", SettingKey.background),
+            ("Cursor", SettingKey.cursor),
+            ("Selection", SettingKey.selection),
+            ("Black", SettingKey.black),
+            ("Red", SettingKey.red),
+            ("Green", SettingKey.green),
+            ("Yellow", SettingKey.yellow),
+            ("Blue", SettingKey.blue),
+            ("Magenta", SettingKey.magenta),
+            ("Cyan", SettingKey.cyan),
+            ("White", SettingKey.white),
+        ]
+
+        for (title, key) in colors {
+            addTextField(title: title, key: key, placeholder: "#RRGGBB or #RRGGBBAA", to: stack)
+        }
+
+        let buttonRow = NSStackView()
+        buttonRow.orientation = .horizontal
+        buttonRow.spacing = 10
+
+        let resetButton = NSButton(
+            title: "Restore Defaults", target: self, action: #selector(resetDefaults))
+
+        let doneButton = NSButton(title: "Done", target: self, action: #selector(closeSettings))
+
+        doneButton.keyEquivalent = "\r"
+
+        buttonRow.addArrangedSubview(resetButton)
+        buttonRow.addArrangedSubview(doneButton)
+
+        stack.addArrangedSubview(buttonRow)
+
+        self.window = window
+
+        refreshControls()
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+
+        DispatchQueue.main.async {
+            [weak self] in self?.scrollSettingsToTop()
+        }
+
+        if let firstField = controls[SettingKey.fontFamily] as? NSTextField {
+            window.makeFirstResponder(firstField)
+        }
+
     }
 
     private func addHeading(_ title: String, to stack: NSStackView) {
@@ -207,6 +313,15 @@ private final class SettingsWindowController: NSObject, NSWindowDelegate, NSText
         let field = NSTextField()
         field.identifier = NSUserInterfaceItemIdentifier(key)
         field.placeholderString = placeholder
+
+        field.isEditable = true
+        field.isSelectable = true
+        field.isEnabled = true
+        field.isBezeled = true
+        field.isBordered = true
+        field.drawsBackground = true
+        field.focusRingType = .default
+
         field.delegate = self
         field.target = self
         field.action = #selector(controlChanged(_:))
@@ -224,6 +339,15 @@ private final class SettingsWindowController: NSObject, NSWindowDelegate, NSText
     ) {
         let field = NSTextField()
         field.identifier = NSUserInterfaceItemIdentifier(key)
+
+        field.isEditable = true
+        field.isSelectable = true
+        field.isEnabled = true
+        field.isBezeled = true
+        field.isBordered = true
+        field.drawsBackground = true
+        field.focusRingType = .default
+
         field.delegate = self
         field.target = self
         field.action = #selector(controlChanged(_:))
@@ -234,11 +358,49 @@ private final class SettingsWindowController: NSObject, NSWindowDelegate, NSText
         )
     }
 
+    private func addCheckbox(title: String, key: String, to stack: NSStackView) {
+        let checkbox =
+            NSButton(
+                checkboxWithTitle: "", target: self, action: #selector(controlChanged(_:)))
+        checkbox.identifier = NSUserInterfaceItemIdentifier(key)
+
+        checkbox.isEnabled = true
+        checkbox.allowsMixedState = false
+
+        controls[key] = checkbox
+        stack.addArrangedSubview(makeRow(title: title, control: checkbox))
+    }
+
+    private func addPopup(
+        title: String, key: String, choices: [(String, String)], to stack: NSStackView
+    ) {
+        let popup = NSPopUpButton()
+        popup.identifier = NSUserInterfaceItemIdentifier(key)
+        popup.target = self
+        popup.action = #selector(controlChanged(_:))
+
+        for choice in choices {
+            popup.addItem(withTitle: choice.0)
+            popup.lastItem?.representedObject = choice.1
+        }
+        controls[key] = popup
+        stack.addArrangedSubview(makeRow(title: title, control: popup))
+    }
+
     private func refreshControls() {
         for (key, control) in controls {
             let value = store.value(for: key)
 
-            if let checkbox = control as? NSButton {
+            if let popup = control as? NSPopUpButton {
+                let selectedValue = value as? String ?? ""
+
+                if let item = popup.itemArray.first(where: {
+                    $0.representedObject as? String == selectedValue
+                }) {
+                    popup.select(item)
+                }
+
+            } else if let checkbox = control as? NSButton {
                 checkbox.state = (value as? Bool ?? false) ? .on : .off
             } else if let popup = control as? NSPopUpButton {
                 let selectedValue = value as? String ?? ""
@@ -252,5 +414,133 @@ private final class SettingsWindowController: NSObject, NSWindowDelegate, NSText
                 field.stringValue = String(describing: value)
             }
         }
+    }
+
+    func controlTextDidChange(_ obj: Notification) {
+        guard let field = obj.object as? NSTextField else {
+            return
+        }
+
+        save(control: field)
+    }
+
+    @objc
+    private func controlChanged(_ sender: NSControl) {
+        save(control: sender)
+    }
+
+    private func save(control: NSControl) {
+        guard let key = control.identifier?.rawValue else {
+            return
+        }
+
+        switch control {
+        case let popup as NSPopUpButton:
+            let value = popup.selectedItem?.representedObject as? String ?? ""
+            store.set(value, for: key)
+        case let checkbox as NSButton:
+            store.set(checkbox.state == .on, for: key)
+        case let popup as NSPopUpButton:
+            let value = popup.selectedItem?.representedObject as? String ?? ""
+            store.set(value, for: key)
+        case let field as NSTextField:
+            save(field: field, key: key)
+        default:
+            break
+        }
+    }
+
+    private func save(field: NSTextField, key: String) {
+        switch key {
+        case SettingKey.fontSize:
+            let value = min(72, max(8, field.doubleValue))
+
+            store.set(value, for: key)
+        case SettingKey.lineHeight:
+            let value = min(
+                3,
+                max(0.8, field.doubleValue)
+            )
+
+            store.set(value, for: key)
+
+        case SettingKey.scrollback:
+            let value = min(
+                1_000_000,
+                max(100, field.integerValue)
+            )
+
+            store.set(value, for: key)
+
+        case SettingKey.windowOpacity:
+            let value = min(
+                1,
+                max(0.4, field.doubleValue)
+            )
+
+            store.set(value, for: key)
+
+        default:
+            store.set(field.stringValue, for: key)
+
+        }
+    }
+
+    @objc
+    private func resetDefaults() {
+        store.reset()
+        refreshControls()
+    }
+
+    @objc
+    private func closeSettings() {
+        window?.close()
+    }
+
+    private func scrollSettingsToTop() {
+
+    }
+}
+
+@MainActor
+private let settingsController =
+    SettingsWindowController()
+
+@_cdecl("termx_show_settings")
+public func termxShowSettings() -> Double {
+    guard Thread.isMainThread else {
+        return -1
+    }
+
+    return MainActor.assumeIsolated {
+        settingsController.show()
+        return 0
+    }
+}
+
+@_cdecl("termx_get_settings")
+public func termxGetSettings(
+    _ buffer: UnsafeMutablePointer<CChar>?,
+    _ capacity: Int32
+) -> Int32 {
+    guard Thread.isMainThread,
+        let buffer,
+        capacity > 0
+    else {
+        return -1
+    }
+
+    return MainActor.assumeIsolated {
+        let json = SettingsStore.shared.json()
+        let bytes = Array(json.utf8)
+        let available = Int(capacity) - 1
+        let count = min(bytes.count, available)
+
+        for index in 0..<count {
+            buffer[index] = CChar(bitPattern: bytes[index])
+        }
+
+        buffer[count] = 0
+        return Int32(count)
     }
 }

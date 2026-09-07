@@ -9,7 +9,7 @@
     "rebuild": "electron-rebuild -f -w node-pty",
     "start": "npm run build && electron --ozone-platform=x11 .",
     "build:native": "node scripts/build-native.cjs",
-    "build:swift": "mkdir -p native/macos/lib && swiftc -emit-library -module-name TermXWindow -Xlinker -install_name -Xlinker @loader_path/../../lib/libTermXWindow.dylib -o native/macos/lib/libTermXWindow.dylib native/macos/NativeWindow.swift",
+    "build:swift": "mkdir -p native/macos/lib && swiftc -emit-library -module-name TermXWindow -Xlinker -install_name -Xlinker @loader_path/../../lib/libTermXWindow.dylib -o native/macos/lib/libTermXWindow.dylib native/macos/NativeWindow.swift native/macos/Settings.swift",
     "build:native:macos": "npm run build:swift && node-gyp rebuild --directory native/macos",
     "build:native:linux": "node-gyp rebuild --directory native/linux",
     "build:renderer": "esbuild src/renderer/index.js --bundle --platform=browser --outfile=dist/renderer.js",
