@@ -1,6 +1,6 @@
 const path = require("node:path");
-const {BrowserWindow, app, ipcMain, dialog, Menu} = require('electron')
-const {validSender, validSize, sendToRenderer, stopSession, rendererPath} = require("./utils");
+const { BrowserWindow, app, ipcMain, dialog, Menu } = require('electron')
+const { validSender, validSize, sendToRenderer, stopSession, rendererPath } = require("./utils");
 const pty = require('node-pty')
 const os = require("node:os");
 
@@ -13,7 +13,7 @@ app.setAboutPanelOptions({
 
 const sessions = new Map();
 
-let nativeWindow;
+let nativeWindow = loadNativeWindow();
 
 let nextSessionNumber = 1;
 
@@ -46,7 +46,7 @@ ipcMain.handle("terminal:start", (event, size) => {
         sendToRenderer(event.sender, "terminal:data", data);
     });
 
-    terminal.onExit(({exitCode}) => {
+    terminal.onExit(({ exitCode }) => {
         if (sessions.get(id) === terminal) {
             sessions.delete(id);
         }
@@ -106,19 +106,17 @@ function getFocusedWindow() {
     return win
 }
 
-function runNativeWindowAction(action) {
-    const win = getFocusedWindow();
-
-    if (!win) return;
-
-    try {
-        nativeWindow[action](
-            win.getNativeWindowHandle()
-        );
-    } catch (error) {
-        console.error(`Native window action "${action}" failed`, error);
+function loadNativeWindow() {
+    switch (process.platform) {
+        case "darwin":
+            return require("../../native/macos/build/Release/native_window.node");
+        case "linux":
+            return require('../../native/linux/build/Release/native_window.node');
+        default:
+            throw new Error(`Native windows are unsupported on ${process.platform}`)
     }
 }
+
 
 function createNewTerminalTab() {
     const parentWindow = getFocusedWindow();
@@ -131,15 +129,17 @@ function installApplicationMenu() {
         {
             label: app.name,
             submenu: [
-                {role: 'about'},
-                {type: 'separator'},
-                {role: 'services'},
-                {type: 'separator'},
-                {role: 'hide'},
-                {role: 'hideOthers'},
-                {role: "unhide"},
-                {type: 'separator'},
-                {role: "quit"}
+                { role: 'about' },
+                ...(process.platform === "darwin" ? [
+                    { type: 'separator' },
+                    { role: 'services' },
+                    { type: 'separator' },
+                    { role: 'hide' },
+                    { role: 'hideOthers' },
+                    { role: "unhide" },
+                    { type: 'separator' },
+                ] : []),
+                { role: "quit" }
             ]
         },
         {
@@ -155,7 +155,7 @@ function installApplicationMenu() {
                     accelerator: "CommandOrControl+N",
                     click: () => createWindow()
                 },
-                {type: 'separator'},
+                { type: 'separator' },
                 {
                     label: "Close Tab",
                     accelerator: "CommandOrControl+W",
@@ -166,6 +166,8 @@ function installApplicationMenu() {
     ]);
     Menu.setApplicationMenu(menu)
 }
+
+
 
 function createWindow(tabParent = null) {
     const sessionNumber = nextSessionNumber++
@@ -178,8 +180,8 @@ function createWindow(tabParent = null) {
         minHeight: 320,
         show: false,
 
-        transparent: true,
-        backgroundColor: "#00000000",
+        transparent: process.platform === "darwin",
+        backgroundColor: process.platform === 'darwin' ? "#00000000" : "#111318",
         frame: true,
         titleBarStyle: "default",
         hasShadow: true,
@@ -253,7 +255,7 @@ function createWindow(tabParent = null) {
             win.getNativeWindowHandle()
         );
 
-        if (tabParent && !tabParent.isDestroyed()) {
+        if (process.platform === "darwin" && tabParent && !tabParent.isDestroyed()) {
             nativeWindow.addTab(
                 tabParent.getNativeWindowHandle(),
                 win.getNativeWindowHandle()
@@ -267,7 +269,9 @@ function createWindow(tabParent = null) {
             }
         }
 
-        win.setWindowButtonVisibility(true);
+        if (process.platform === "darwin" && typeof win.setWindowButtonVisibility === "function") {
+            win.setWindowButtonVisibility(true);
+        }
         win.loadFile(rendererPath);
 
         if (win.isDestroyed()) return;
@@ -300,7 +304,24 @@ function reportStartupError(error) {
 
 app.whenReady().then(async () => {
     try {
-        nativeWindow = require("../../native/macos/build/Release/native_window")
+        switch (process.platform) {
+            case "darwin":
+                nativeWindow = require(
+                    "../../native/macos/build/Release/native_window.node"
+                );
+                break;
+
+            case "linux":
+                nativeWindow = require(
+                    "../../native/linux/build/Release/native_window.node"
+                );
+                break;
+
+            default:
+                throw new Error(
+                    `Unsupported native-window platform: ${process.platform}`
+                );
+        }
         installApplicationMenu()
         createWindow();
 

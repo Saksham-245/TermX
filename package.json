@@ -7,9 +7,10 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "npm run build:native && npm run build:renderer",
     "rebuild": "electron-rebuild -f -w node-pty",
-    "start": "npm run build && electron .",
-    "build:native": "npm run build:swift && node-gyp rebuild --directory native/macos",
-    "build:swift": "mkdir -p native/macos/lib && xcrun swiftc -swift-version 5 -emit-library -O -target arm64-apple-macos26.0 -module-name TermXWindow native/macos/NativeWindow.swift -o native/macos/lib/libTermXWindow.dylib -Xlinker -install_name -Xlinker @loader_path/../../lib/libTermXWindow.dylib",
+    "start": "npm run build && electron --ozone-platform=x11 .",
+    "build:native": "node scripts/build-native.cjs",
+    "build:native:macos": "npm run build:swift && node-gyp rebuild --directory native/macos",
+    "build:native:linux": "node-gyp rebuild --directory native/linux",
     "build:renderer": "esbuild src/renderer/index.js --bundle --platform=browser --outfile=dist/renderer.js",
     "pack": "npm run build && electron-packager . TermX --platform=darwin --arch=arm64 --out=release --overwrite --prune=true --asar.unpackDir=\"{node_modules/node-pty,native/macos}\" --ignore=\"^/release($|/)\" --ignore=\"^/node_modules/node-pty/prebuilds/win32-\" --ignore=\"^/node_modules/node-pty/prebuilds/darwin-x64($|/)\" --ignore=\"^/node_modules/node-pty/deps/winpty($|/)\" --ignore=\"^/node_modules/node-pty/third_party/conpty($|/)\" --ignore=\"\\.pdb$\""
   },
