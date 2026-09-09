@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstring>
 #include <napi.h>
 
 extern "C" double termx_configure(void *view);
