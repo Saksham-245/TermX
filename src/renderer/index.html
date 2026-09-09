@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8"/>
+    <head>
+        <meta charset="UTF-8" />
 
-    <meta
+        <meta
             http-equiv="Content-Security-Policy"
             content="
         default-src 'self';
@@ -14,48 +14,64 @@
         object-src 'none';
         base-uri 'none';
       "
-    />
+        />
 
-    <meta
-            name="viewport"
-            content="width=device-width, initial-scale=1"
-    />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>TermX</title>
+        <title>TermX</title>
 
-    <link rel="stylesheet" href="../../dist/renderer.css"/>
-    <script defer src="../../dist/renderer.js"></script>
-</head>
+        <link rel="stylesheet" href="../../dist/renderer.css" />
+        <script defer src="../../dist/renderer.js"></script>
+    </head>
 
-<body>
-<main class="window">
-    <section class="terminal-panel">
-        <form id="terminal-search" class="terminal-search" hidden>
-            <input id="terminal-search-input" class="terminal-search-input" type="search"
-                   placeholder="Find" aria-label="Search terminal output"
-                   autocomplete="off" spellcheck="false"
-            />
-            <span id="terminal-search-status" class="terminal-search-status" aria-live="polite"></span>
-            <button class="terminal-search-button" type="button" data-search-action="previous"
-                    aria-label="Previous match" title="Previous match">↑
-            </button>
-            <button
-                    class="terminal-search-button"
-                    type="button"
-                    data-search-action="next"
-                    aria-label="Next match"
-                    title="Next match"
-            >↓</button>
-            <button
-                    class="terminal-search-button"
-                    type="button"
-                    data-search-action="close"
-                    aria-label="Close search"
-                    title="Close search"
-            >×</button>
-        </form>
-        <div id="terminal" aria-label="Terminal"></div>
-    </section>
-</main>
-</body>
+    <body>
+        <main class="window">
+            <section class="terminal-panel">
+                <form id="terminal-search" class="terminal-search" hidden>
+                    <input
+                        id="terminal-search-input"
+                        class="terminal-search-input"
+                        type="search"
+                        placeholder="Find"
+                        aria-label="Search terminal output"
+                        autocomplete="off"
+                        spellcheck="false"
+                    />
+                    <span
+                        id="terminal-search-status"
+                        class="terminal-search-status"
+                        aria-live="polite"
+                    ></span>
+                    <button
+                        class="terminal-search-button"
+                        type="button"
+                        data-search-action="previous"
+                        aria-label="Previous match"
+                        title="Previous match"
+                    >
+                        ↑
+                    </button>
+                    <button
+                        class="terminal-search-button"
+                        type="button"
+                        data-search-action="next"
+                        aria-label="Next match"
+                        title="Next match"
+                    >
+                        ↓
+                    </button>
+                    <button
+                        class="terminal-search-button"
+                        type="button"
+                        data-search-action="close"
+                        aria-label="Close search"
+                        title="Close search"
+                    >
+                        ×
+                    </button>
+                </form>
+                <div id="terminal" aria-label="Terminal"></div>
+            </section>
+        </main>
+    </body>
 </html>
