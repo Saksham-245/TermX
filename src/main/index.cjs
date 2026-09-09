@@ -215,10 +215,10 @@ function startSettingsMonitor() {
     return;
   }
 
-  const inital = readNativeSettings();
+  const initial = readNativeSettings();
 
-  currentSettingsJson = inital.json;
-  currentSettings = inital.settings;
+  currentSettingsJson = initial.json;
+  currentSettings = initial.settings;
 
   settingsTimer = setInterval(broadcastSettings, 250);
 
@@ -240,7 +240,7 @@ function loadNativeWindow() {
     case "darwin":
       return require("../../native/macos/build/Release/native_window.node");
     case "linux":
-      return require("../../native/linux/build/Release/native_window.node");
+      // return require("../../native/linux/build/Release/native_window.node");
     default:
       throw new Error(`Native windows are unsupported on ${process.platform}`);
   }
@@ -447,13 +447,14 @@ app.whenReady().then(async () => {
         break;
 
       case "linux":
-        nativeWindow = require("../../native/linux/build/Release/native_window.node");
+        // nativeWindow = require("../../native/linux/build/Release/native_window.node");
         break;
 
       default:
-        throw new Error(
-          `Unsupported native-window platform: ${process.platform}`,
-        );
+        break;
+        // throw new Error(
+        //   `Unsupported native-window platform: ${process.platform}`,
+        // );
     }
     startSettingsMonitor();
     installApplicationMenu();

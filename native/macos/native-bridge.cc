@@ -1,7 +1,5 @@
-#include <cstddef>
 #include <cstdint>
 #include <napi.h>
-#include <cstring>
 
 extern "C" double termx_configure(void *view);
 extern "C" double termx_top_inset(void *view);
@@ -36,7 +34,7 @@ static bool ReadNativeHandle(
         return false;
     }
 
-    auto buffer =
+    const auto buffer =
         value.As<Napi::Buffer<unsigned char>>();
 
     if (buffer.Length() != sizeof(void *)) {

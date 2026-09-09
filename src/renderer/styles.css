@@ -32,6 +32,7 @@ body {
 }
 
 .terminal-panel {
+    position: relative;
     flex: 1;
     min-width: 0;
     min-height: 0;
@@ -40,6 +41,74 @@ body {
 
     background: rgba(15, 19, 28, 0.38);
     user-select: auto;
+}
+
+.terminal-search {
+    position: absolute;
+    z-index: 10;
+    top: 8px;
+    right: 20px;
+
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    padding: 6px;
+    border: 1px solid rgba(145, 182, 255, 0.35);
+    border-radius: 9px;
+
+    background: rgba(20, 25, 36, 0.96);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.terminal-search[hidden] {
+    display: none;
+}
+
+.terminal-search-input {
+    width: 210px;
+    padding: 5px 8px;
+
+    border: 1px solid rgba(237, 241, 247, 0.18);
+    border-radius: 6px;
+    outline: none;
+
+    color: #edf1f7;
+    background: rgba(0, 0, 0, 0.28);
+    font: inherit;
+}
+
+.terminal-search-input:focus {
+    border-color: #91b6ff;
+}
+
+.terminal-search-input::-webkit-search-cancel-button {
+    display: none;
+}
+
+.terminal-search-status {
+    min-width: 68px;
+    color: #ff8090;
+    font-size: 12px;
+    text-align: center;
+}
+
+.terminal-search-button {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+
+    border: 0;
+    border-radius: 5px;
+
+    color: #edf1f7;
+    background: transparent;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.terminal-search-button:hover {
+    background: rgba(145, 182, 255, 0.18);
 }
 
 #terminal {

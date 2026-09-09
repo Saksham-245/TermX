@@ -2,6 +2,7 @@ import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { FitAddon } from "@xterm/addon-fit";
 import "./styles.css";
+import {SearchAddon} from "@xterm/addon-search";
 
 const container = document.getElementById("terminal");
 
@@ -32,7 +33,105 @@ const terminal = new Terminal({
 
 const fit = new FitAddon();
 terminal.loadAddon(fit);
+const search = new SearchAddon();
+terminal.loadAddon(search)
 terminal.open(container);
+
+const searchForm = document.getElementById("terminal-search");
+const searchInput = document.getElementById("terminal-search-input");
+const searchStatus = document.getElementById("terminal-search-status");
+
+const searchOptions = {
+  caseSensitive: true,
+  incremental: true,
+  decorations: {
+    matchBackground: "#5777a955",
+    matchBorder: "#91b6ff",
+    matchOverviewRuler: "#91b6ff",
+    activeMatchBackground: "#91b6ff99",
+    activeMatchBorder: "#edf1f7",
+    activeMatchColorOverviewRuler: "#edf1f7",
+  },
+}
+
+function runSearch(direction = "next") {
+  const query = searchInput.value;
+
+  if (!query) {
+    search.clearDecorations();
+    searchStatus.textContent = ""
+    return;
+  }
+
+  const found = direction === "previous" ? search.findPrevious(query, searchOptions)
+      : search.findNext(query, searchOptions);
+
+  searchStatus.textContent = found ? "" : "No matches";
+}
+
+function openSearch() {
+  searchForm.hidden = false;
+
+  const selectedText = document.getSelection().trim();
+
+  if (selectedText && !searchInput.value) {
+    searchInput.value = selectedText;
+
+    requestAnimationFrame(() => {
+      searchInput.focus();
+      searchInput.select();
+
+      if (searchInput.value) {
+        runSearch();
+      }
+    })
+  }
+}
+
+function closeSearch() {
+  searchForm.hidden = true;
+  searchStatus.textContent = "";
+  search.clearDecorations();
+  terminal.focus();
+}
+
+function handleSearchShortcut(event) {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f") {
+    event.preventDefault();
+    openSearch();
+    return;
+  }
+
+  if (event.key === "Escape" && !searchForm.hidden) {
+    event.preventDefault();
+    closeSearch();
+  }
+}
+
+function handleSearchSubmit(event) {
+  event.preventDefault();
+  runSearch(event.shiftKey ? "previous" : "next");
+}
+
+function handleSearchClick(event) {
+  const action = event.target.closest("[data-search-action]")?.dataset.searchAction;
+
+  if (action === "close") {
+    closeSearch();
+  } else if (action === "previous" || action === "next") {
+    runSearch(action);
+    searchInput.focus()
+  }
+}
+
+function handleSearchInput() {
+  runSearch()
+}
+
+document.addEventListener("keydown", handleSearchShortcut);
+document.addEventListener("submit", handleSearchSubmit);
+document.addEventListener("click", handleSearchClick);
+document.addEventListener("input", handleSearchInput);
 
 let running = false;
 let exited = false;
@@ -171,7 +270,7 @@ async function updateNativeInset() {
     if (disposed || request !== latestInsetRequest) return;
 
     if (!Number.isFinite(inset) || inset < 0) {
-      throw new Error("Invalid native title-bar inset");
+      // throw new Error("Invalid native title-bar inset");
     }
 
     document.documentElement.style.setProperty(
@@ -257,6 +356,10 @@ window.addEventListener("beforeunload", () => {
   removeExit();
   removeWindowLayout();
   removeSettings();
+  document.removeEventListener("keydown", handleSearchShortcut);
+  document.removeEventListener("submit", handleSearchSubmit);
+  document.removeEventListener("click", handleSearchClick);
+  document.removeEventListener("input", handleSearchInput);
   terminal.dispose();
 });
 
